@@ -1,10 +1,11 @@
-name: Build LINK Android Pilot APK
+name: Build LINK Android v0.3 Pilot APK
 
 on:
   workflow_dispatch:
   push:
     branches:
       - develop-v0.2
+      - feature/v0.3-ai-connected
     paths:
       - "LINK-Android/**"
       - ".github/workflows/android-apk.yml"
@@ -42,7 +43,7 @@ jobs:
       - name: Upload pilot APK
         uses: actions/upload-artifact@v4
         with:
-          name: LINK-pilot-debug-apk
+          name: LINK-v0.3-debug-apk
           path: LINK-Android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
