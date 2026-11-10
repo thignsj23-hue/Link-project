@@ -1,4 +1,4 @@
-# LINK v0.3.0 — IA conectada (piloto)
+# LINK v0.4.0 — experiência local e IA conectada
 
 ## O que entrou nesta versão
 - Cliente Android nativo Kotlin/Jetpack Compose para conversar com o backend LINK.
@@ -7,9 +7,22 @@
 - Token de acesso entre app e backend; a chave OpenAI permanece exclusivamente no servidor.
 - Indicador de conexão, estado de envio e resposta falada via Android TextToSpeech.
 - Endpoint de saúde: `GET /health`.
+- Tradução de texto no aparelho para seis idiomas e leitura de texto em imagens (OCR).
+- Modo Link ao Vivo para falar uma frase, traduzir no aparelho e ouvir a tradução.
+- Navegação Link Maps que abre a busca no aplicativo de mapas instalado.
+- Navegação adaptável: barra inferior em celular e trilho lateral em telas largas.
+- Ícone adaptativo próprio e seleção automática da melhor voz local disponível.
 
 ## Arquitetura
-Android (HTTPS + token de acesso) → FastAPI → OpenAI Responses API.
+Recursos locais (Android/ML Kit) funcionam sem a API LINK. Conversa inteligente: Android (HTTPS + token) → FastAPI → OpenAI Responses API.
+
+## Recursos locais e custos
+- Tradução e OCR são executados no aparelho e não consomem créditos OpenAI.
+- Na primeira tradução de um par de idiomas, o ML Kit baixa os modelos necessários (aprox. 30 MB por modelo); a primeira utilização precisa de internet. Depois, a tradução é feita no aparelho.
+- O download do modelo de tradução está limitado a Wi-Fi para evitar consumo móvel inesperado. Os modelos são fornecidos pelo ML Kit; resultados de tradução recebem atribuição ao Google Translate.
+- O texto e as imagens processados por tradução/OCR permanecem no aparelho; o ML Kit pode enviar métricas de diagnóstico e utilização conforme a [documentação de privacidade](https://developers.google.com/ml-kit/terms).
+- O reconhecimento de voz e a qualidade das vozes dependem dos serviços e pacotes instalados no Android. A resposta inteligente por voz ainda usa a conversa na nuvem.
+- Link Maps abre o app de mapas disponível ou a busca web. Cobertura e navegação são fornecidas por esse app.
 
 ## Configuração do backend
 Defina no ambiente do servidor:
@@ -39,10 +52,13 @@ A URL do backend e o token são necessários para conexão real. Sem eles, o app
 
 ## Limitações explícitas do piloto
 - A memória é apenas o histórico recente da conversa enviado pelo app; não há memória persistente entre sessões.
-- Seleção de imagens continua disponível, mas análise visual ainda não está implementada.
-- Voz usa reconhecimento de fala do Android e TextToSpeech; não é voz em tempo real.
+- A leitura de imagem reconhece texto impresso em escrita latina; não interpreta objetos nem todos os sistemas de escrita.
+- Link ao Vivo traduz uma fala por vez (pressione para cada turno); não é interpretação contínua em streaming.
+- A naturalidade da fala depende da voz local instalada. O app seleciona a melhor voz local disponível e ajusta levemente o ritmo.
+- O app LINK não é afiliado ao Google. A ação e os resultados de tradução exibem a atribuição exigida pelo ML Kit.
 - Não há execução autônoma de ações em outros aplicativos, nem pagamentos ou envio de mensagens.
 - Permissões e proteções do Android permanecem obrigatórias.
 
 ## Segurança
 Nunca coloque `OPENAI_API_KEY` em código Android, BuildConfig, GitHub ou aplicativo. Configure-a como variável secreta do serviço de backend. Use HTTPS. Não exponha detalhes internos ou credenciais nos logs.
+
