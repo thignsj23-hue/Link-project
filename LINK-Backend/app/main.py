@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 from typing import Literal
 
@@ -60,9 +61,30 @@ def raise_openai_http_error(exc: OpenAIError) -> None:
             detail="O projeto OpenAI não tem acesso ao modelo configurado. Confira OPENAI_MODEL e as permissões do projeto.",
         ) from exc
     if isinstance(exc, RateLimitError):
+        error_code = None
+        body = getattr(exc, "body", None)
+        error = body.get("error") if isinstance(body, dict) else None
+        code = error.get("code") if isinstance(error, dict) else None
+        if isinstance(code, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,64}", code):
+            error_code = code
+        if error_code == "rate_limit_exceeded":
+            detail = "Limite temporário de requisições ou tokens da API atingido (rate_limit_exceeded). Aguarde e tente novamente."
+        elif error_code in {
+            "insufficient_quota",
+            "credit_balance_exhausted",
+            "organization_usage_limit_exceeded",
+            "organization_spend_limit_exceeded",
+            "project_spend_limit_exceeded",
+            "billing_hard_limit_reached",
+        }:
+            detail = f"Quota, créditos ou limite de gastos da API atingido ({error_code}). Confira faturamento e limites da organização/projeto."
+        elif error_code:
+            detail = f"A OpenAI retornou erro 429 ({error_code}). Confira os limites e o faturamento da organização/projeto."
+        else:
+            detail = "A OpenAI retornou erro 429. Pode ser limite temporário de requisições/tokens ou quota/créditos; confira Usage, Billing e limites da organização/projeto."
         raise HTTPException(
             status_code=429,
-            detail="Limite ou créditos da API OpenAI atingidos. Verifique o uso e o faturamento do projeto.",
+            detail=detail,
         ) from exc
     if isinstance(exc, APITimeoutError):
         raise HTTPException(status_code=504, detail="A OpenAI demorou demais para responder.") from exc
