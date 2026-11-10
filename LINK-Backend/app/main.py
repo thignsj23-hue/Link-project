@@ -5,7 +5,16 @@ from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    OpenAI,
+    OpenAIError,
+    PermissionDeniedError,
+    RateLimitError,
+)
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -71,6 +80,37 @@ def output_text(response) -> str:
     return text.strip()
 
 
+def raise_openai_http_error(exc: OpenAIError) -> None:
+    """Translate provider failures to useful, safe HTTP responses."""
+    if isinstance(exc, AuthenticationError):
+        raise HTTPException(
+            status_code=502,
+            detail="A OpenAI rejeitou a credencial do servidor. Confira OPENAI_API_KEY no Render.",
+        ) from exc
+    if isinstance(exc, PermissionDeniedError):
+        raise HTTPException(
+            status_code=502,
+            detail="O projeto OpenAI não tem acesso ao modelo configurado. Confira OPENAI_MODEL e as permissões do projeto.",
+        ) from exc
+    if isinstance(exc, RateLimitError):
+        raise HTTPException(
+            status_code=429,
+            detail="Limite ou créditos da API OpenAI atingidos. Verifique o uso e o faturamento do projeto.",
+        ) from exc
+    if isinstance(exc, APITimeoutError):
+        raise HTTPException(status_code=504, detail="A OpenAI demorou demais para responder.") from exc
+    if isinstance(exc, APIConnectionError):
+        raise HTTPException(status_code=502, detail="Não foi possível conectar ao serviço OpenAI.") from exc
+    if isinstance(exc, APIStatusError) and exc.status_code >= 500:
+        raise HTTPException(status_code=502, detail="O serviço OpenAI está indisponível no momento.") from exc
+    if isinstance(exc, APIStatusError):
+        raise HTTPException(
+            status_code=502,
+            detail="A OpenAI rejeitou a solicitação. Confira OPENAI_MODEL e os recursos habilitados no projeto.",
+        ) from exc
+    raise HTTPException(status_code=502, detail="Falha ao consultar o serviço de IA.") from exc
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
     return {
@@ -101,6 +141,8 @@ def chat(payload: ChatRequest) -> dict[str, str]:
         return {"reply": output_text(response)}
     except HTTPException:
         raise
+    except OpenAIError as exc:
+        raise_openai_http_error(exc)
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Falha ao consultar o serviço de IA.") from exc
 
@@ -132,6 +174,8 @@ def vision(payload: VisionRequest) -> dict[str, str]:
         return {"reply": output_text(response)}
     except HTTPException:
         raise
+    except OpenAIError as exc:
+        raise_openai_http_error(exc)
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Falha ao analisar a imagem com o serviço de IA.") from exc
 
@@ -149,5 +193,7 @@ def web_search(payload: WebSearchRequest) -> dict[str, str]:
         return {"reply": output_text(response)}
     except HTTPException:
         raise
+    except OpenAIError as exc:
+        raise_openai_http_error(exc)
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Falha na pesquisa pela internet.") from exc
