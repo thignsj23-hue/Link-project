@@ -2,7 +2,9 @@
 
 | Recurso | Estado |
 |---|---|
-| App Kotlin + Jetpack Compose | Código atualizado; aguardando CI |
+| App Kotlin + Jetpack Compose | Compilação Android debug concluída com sucesso no GitHub Actions |
+| APK debug | Gerado em 10/11/2026; disponível no artefato LINK-v0.2.0-artifacts |
+| Teste de backend | Sintaxe validada e 3 testes pytest aprovados |
 | Conversa básica local | Implementada no código |
 | Reconhecimento de fala nativo | Implementado no código; depende do aparelho |
 | Síntese de voz nativa | Implementada no código; depende do aparelho |
@@ -17,5 +19,6 @@
 | Vídeo ao vivo | Não implementado |
 | Controle geral de apps | Não implementado |
 | Confirmação de ações sensíveis | Regra documentada; sem executor de ações nesta versão |
-| APK compilado | Pendente do GitHub Actions desta branch |
 | Teste em aparelho físico | Pendente |
+ 
+Build validado: workflow [42813837152](https://github.com/thignsj23-hue/Link-project/actions/runs/42813837152), commit `f3f4fba7ec929caa59dcd68c0337899325f08ded`. O artefato contém `app-debug.apk` e `LINK-Android-v0.2.0-source.zip`.
