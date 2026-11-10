@@ -52,7 +52,7 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
           python -m compileall -q app
-          pytest -q
+          PYTHONPATH=. pytest -q
 
       - name: Package APK and source
         run: |
