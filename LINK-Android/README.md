@@ -1,13 +1,15 @@
-# LINK Android v0.1.0
+# LINK Android 0.2.0
 
-Base inicial do aplicativo Android nativo em Kotlin e Jetpack Compose.
+Projeto Android nativo em Kotlin e Jetpack Compose. Requer Android 8.0 (API 26) ou superior.
 
-Inclui interface de conversa, histórico em memória durante a sessão, reconhecimento de fala pt-BR, resposta falada com Android TextToSpeech, seleção de imagem pela galeria e preferências iniciais de personalidade/autonomia.
+## Recursos
+- Interface de conversa.
+- Reconhecimento de fala por serviço nativo do Android (pt-BR).
+- Síntese de voz nativa (pt-BR).
+- Histórico persistente local em Room/SQLite.
+- Preferências de personalidade e autonomia por categoria.
+- Seleção de imagem e envio opcional ao backend.
+- Pesquisa web e chat OpenAI via backend HTTPS.
+- Serviço experimental de escuta da palavra LINK, com notificação persistente.
 
-Ainda não inclui backend, conexão com modelo de IA, memória persistente, autenticação, análise de imagens ou integração autônoma com outros aplicativos.
-
-## Compilação
-Abra esta pasta no Android Studio, instale Android SDK 35, sincronize o Gradle e execute em dispositivo Android 8.0 ou superior.
-
-## Segurança
-Chaves de API devem permanecer no backend, nunca embutidas no APK. Solicite permissões apenas quando necessárias e exija confirmação para ações externas sensíveis.
+A palavra de ativação não é um DSP dedicado; o consumo de bateria e a disponibilidade dependem do aparelho, permissões e pacotes de reconhecimento offline.
