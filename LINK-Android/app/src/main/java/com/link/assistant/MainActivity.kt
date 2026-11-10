@@ -104,14 +104,13 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
     var autoSendVoice by remember { mutableStateOf(false) }
     var translationInput by remember { mutableStateOf("") }
     var translationOutput by remember { mutableStateOf("") }
+    var autoDetectLanguage by remember { mutableStateOf(true) }
     var sourceLanguage by remember { mutableStateOf(languageOptions[0]) }
     var targetLanguage by remember { mutableStateOf(languageOptions[1]) }
     var translating by remember { mutableStateOf(false) }
     var selectSource by remember { mutableStateOf(false) }
     var selectTarget by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf(ChatLine(true, "Olá! Sou o LINK. Posso conversar quando o backend estiver configurado. Tradução offline, voz, leitura de texto em imagens e mapas estão no menu.")) }
-
-    suspend fun translate(text: String): String = LocalTranslation.translate(text, sourceLanguage.id, targetLanguage.id)
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         listening = false
@@ -122,8 +121,12 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                 scope.launch {
                     translating = true
                     try {
-                        translationOutput = translate(spoken)
-                        status = "Traduzido no aparelho"
+                        val detected = if (autoDetectLanguage) LocalTranslation.detectLanguage(spoken) else null
+                        val detectedOption = languageOptions.firstOrNull { it.id == detected }
+                        val sourceId = detectedOption?.id ?: sourceLanguage.id
+                        if (detectedOption != null) sourceLanguage = detectedOption
+                        translationOutput = LocalTranslation.translate(spoken, sourceId, targetLanguage.id)
+                        status = if (detectedOption != null) "Idioma detectado: ${detectedOption.name} • traduzido no aparelho" else "Idioma não identificado com segurança; usado ${sourceLanguage.name}"
                         onSpeak(translationOutput, targetLanguage.id)
                     } catch (e: Exception) { status = e.message ?: "Não foi possível traduzir" }
                     finally { translating = false; listenForTranslation = false }
@@ -139,8 +142,12 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                 try {
                     val extracted = LocalTranslation.readImage(context, uri)
                     translationInput = extracted
-                    translationOutput = translate(extracted)
-                    status = "Texto detectado e traduzido no aparelho"
+                    val detected = if (autoDetectLanguage) LocalTranslation.detectLanguage(extracted) else null
+                    val detectedOption = languageOptions.firstOrNull { it.id == detected }
+                    val sourceId = detectedOption?.id ?: sourceLanguage.id
+                    if (detectedOption != null) sourceLanguage = detectedOption
+                    translationOutput = LocalTranslation.translate(extracted, sourceId, targetLanguage.id)
+                    status = if (detectedOption != null) "Imagem • idioma detectado: ${detectedOption.name}" else "Texto da imagem • usado ${sourceLanguage.name}"
                 } catch (e: Exception) { status = e.message ?: "Não foi possível ler essa imagem" }
                 finally { translating = false }
             }
@@ -191,7 +198,14 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
         if (text.isEmpty()) { status = "Digite ou fale um texto primeiro"; return }
         scope.launch {
             translating = true
-            try { translationOutput = translate(text); status = "Traduzido no aparelho • ${sourceLanguage.name} → ${targetLanguage.name}" }
+            try {
+                val detected = if (autoDetectLanguage) LocalTranslation.detectLanguage(text) else null
+                val detectedOption = languageOptions.firstOrNull { it.id == detected }
+                val sourceId = detectedOption?.id ?: sourceLanguage.id
+                if (detectedOption != null) sourceLanguage = detectedOption
+                translationOutput = LocalTranslation.translate(text, sourceId, targetLanguage.id)
+                status = if (detectedOption != null) "Idioma detectado: ${detectedOption.name} → ${targetLanguage.name}" else "Usado ${sourceLanguage.name} → ${targetLanguage.name}"
+            }
             catch (e: Exception) { status = e.message ?: "Falha na tradução" }
             finally { translating = false }
         }
@@ -239,6 +253,7 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                             LinkPage.TRANSLATE, LinkPage.LIVE -> TranslationScreen(
                                 live = page == LinkPage.LIVE, input = translationInput, onInput = { translationInput = it }, output = translationOutput,
                                 source = sourceLanguage, target = targetLanguage, chooseSource = { selectSource = true }, chooseTarget = { selectTarget = true },
+                                autoDetect = autoDetectLanguage, onAutoDetect = { autoDetectLanguage = it },
                                 swap = { val old = sourceLanguage; sourceLanguage = targetLanguage; targetLanguage = old },
                                 onTranslate = { translateCurrent() }, onSpeak = { if (translationOutput.isNotBlank()) onSpeak(translationOutput, targetLanguage.id) },
                                 onMic = { startSpeech(true) }, listening = listening, onImage = { imageLauncher.launch("image/*") },
@@ -299,10 +314,18 @@ private fun pageIcon(page: LinkPage) = when (page) {
 
 @Composable private fun TranslationScreen(live: Boolean, input: String, onInput: (String) -> Unit, output: String,
     source: LanguageOption, target: LanguageOption, chooseSource: () -> Unit, chooseTarget: () -> Unit, swap: () -> Unit,
+    autoDetect: Boolean, onAutoDetect: (Boolean) -> Unit,
     onTranslate: () -> Unit, onSpeak: () -> Unit, onMic: () -> Unit, listening: Boolean, onImage: () -> Unit, onAttribution: () -> Unit) {
     Column(Modifier.fillMaxWidth().fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Spacer(Modifier.height(12.dp))
         Text(if (live) "Tradução por voz, diretamente no aparelho" else "Traduza texto e imagens sem créditos da API", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Text("Detectar idioma automaticamente", color = Color.White, fontSize = 14.sp)
+                Text("Texto/imagem: português, inglês, espanhol, francês, italiano e alemão", color = Color.Gray, fontSize = 11.sp)
+            }
+            Switch(checked = autoDetect, onCheckedChange = onAutoDetect)
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = chooseSource, modifier = Modifier.weight(1f)) { Text(source.name, maxLines = 1) }
             IconButton(onClick = swap) { Icon(Icons.Default.SwapHoriz, "Trocar idiomas", tint = Cyan) }

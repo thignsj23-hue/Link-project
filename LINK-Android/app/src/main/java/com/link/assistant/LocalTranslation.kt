@@ -2,6 +2,7 @@ package com.link.assistant
 
 import android.content.Context
 import android.net.Uri
+import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.Translation
@@ -13,6 +14,16 @@ import kotlinx.coroutines.tasks.await
 
 /** Uses on-device ML Kit models; translation text is not sent to LINK's paid API. */
 object LocalTranslation {
+    suspend fun detectLanguage(text: String): String? {
+        if (text.trim().length < 20) return null
+        val identifier = LanguageIdentification.getClient()
+        return try {
+            identifier.identifyLanguage(text.take(1000)).await().takeIf { it != "und" }
+        } catch (_: Exception) {
+            null
+        } finally { identifier.close() }
+    }
+
     suspend fun translate(text: String, source: String, target: String): String {
         require(text.isNotBlank()) { "Digite ou fale um texto primeiro." }
         require(text.length <= 5000) { "Limite local: até 5.000 caracteres por tradução." }
