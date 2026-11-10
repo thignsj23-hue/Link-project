@@ -7,7 +7,7 @@
 - Token de acesso entre app e backend; a chave OpenAI permanece exclusivamente no servidor.
 - Indicador de conexão, estado de envio e resposta falada via Android TextToSpeech.
 - Endpoint de saúde: `GET /health`.
-- Tradução de texto no aparelho para seis idiomas e leitura de texto em imagens (OCR).
+- Detecção automática do idioma de origem em textos longos/imagens entre português, inglês, espanhol, francês, italiano e alemão; tradução no aparelho para esses seis idiomas e leitura de texto em imagens (OCR).
 - Modo Link ao Vivo para falar uma frase, traduzir no aparelho e ouvir a tradução.
 - Navegação Link Maps que abre a busca no aplicativo de mapas instalado.
 - Navegação adaptável: barra inferior em celular e trilho lateral em telas largas.
@@ -53,6 +53,7 @@ A URL do backend e o token são necessários para conexão real. Sem eles, o app
 ## Limitações explícitas do piloto
 - A memória é apenas o histórico recente da conversa enviado pelo app; não há memória persistente entre sessões.
 - A leitura de imagem reconhece texto impresso em escrita latina; não interpreta objetos nem todos os sistemas de escrita.
+- A identificação automática usa o texto extraído e exige conteúdo suficiente; em texto curto ou ambíguo, o LINK usa o idioma de origem escolhido na tela.
 - Link ao Vivo traduz uma fala por vez (pressione para cada turno); não é interpretação contínua em streaming.
 - A naturalidade da fala depende da voz local instalada. O app seleciona a melhor voz local disponível e ajusta levemente o ritmo.
 - O app LINK não é afiliado ao Google. A ação e os resultados de tradução exibem a atribuição exigida pelo ML Kit.
