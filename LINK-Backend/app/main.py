@@ -3,7 +3,16 @@ import secrets
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    OpenAI,
+    OpenAIError,
+    PermissionDeniedError,
+    RateLimitError,
+)
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="LINK API", version="0.3.0")
@@ -38,6 +47,36 @@ def require_client_token(authorization: str | None = Header(default=None)):
     if not authorization or not secrets.compare_digest(authorization, expected):
         raise HTTPException(status_code=401, detail="Token de acesso inválido.")
 
+def raise_openai_http_error(exc: OpenAIError) -> None:
+    """Map OpenAI failures to safe, actionable backend responses."""
+    if isinstance(exc, AuthenticationError):
+        raise HTTPException(
+            status_code=502,
+            detail="A OpenAI rejeitou a credencial do servidor. Confira OPENAI_API_KEY no Render.",
+        ) from exc
+    if isinstance(exc, PermissionDeniedError):
+        raise HTTPException(
+            status_code=502,
+            detail="O projeto OpenAI não tem acesso ao modelo configurado. Confira OPENAI_MODEL e as permissões do projeto.",
+        ) from exc
+    if isinstance(exc, RateLimitError):
+        raise HTTPException(
+            status_code=429,
+            detail="Limite ou créditos da API OpenAI atingidos. Verifique o uso e o faturamento do projeto.",
+        ) from exc
+    if isinstance(exc, APITimeoutError):
+        raise HTTPException(status_code=504, detail="A OpenAI demorou demais para responder.") from exc
+    if isinstance(exc, APIConnectionError):
+        raise HTTPException(status_code=502, detail="Não foi possível conectar ao serviço OpenAI.") from exc
+    if isinstance(exc, APIStatusError) and exc.status_code >= 500:
+        raise HTTPException(status_code=502, detail="O serviço OpenAI está indisponível no momento.") from exc
+    if isinstance(exc, APIStatusError):
+        raise HTTPException(
+            status_code=502,
+            detail="A OpenAI rejeitou a solicitação. Confira OPENAI_MODEL e os recursos habilitados no projeto.",
+        ) from exc
+    raise HTTPException(status_code=502, detail="Falha ao consultar o serviço de IA.") from exc
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "LINK API", "version": "0.3.0", "ai_configured": client is not None}
@@ -63,6 +102,8 @@ def chat(payload: ChatRequest):
         return ChatResponse(reply=answer, model=MODEL)
     except HTTPException:
         raise
-    except Exception:
+    except OpenAIError as exc:
+        raise_openai_http_error(exc)
+    except Exception as exc:
         # Do not expose provider credentials or internal exception details to the client.
-        raise HTTPException(status_code=502, detail="Falha ao consultar o serviço de IA. Tente novamente.")
+        raise HTTPException(status_code=502, detail="Falha ao consultar o serviço de IA. Tente novamente.") from exc
