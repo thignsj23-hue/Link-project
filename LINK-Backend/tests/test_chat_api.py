@@ -23,10 +23,11 @@ def post_chat(client, *, token="test-link-token", message="Oi"):
     )
 
 
-def provider_error(error_type, status_code):
+def provider_error(error_type, status_code, *, code=None):
     request = httpx.Request("POST", "https://api.openai.com/v1/responses")
-    response = httpx.Response(status_code, request=request, json={"error": {"message": "redacted"}})
-    return error_type("provider failure", response=response, body={"error": {"message": "redacted"}})
+    error = {"message": "redacted", "code": code}
+    response = httpx.Response(status_code, request=request, json={"error": error})
+    return error_type("provider failure", response=response, body={"error": error})
 
 
 def test_chat_reports_missing_openai_configuration(api_client, monkeypatch):
@@ -61,13 +62,29 @@ def test_chat_maps_openai_authentication_failure(api_client, monkeypatch):
 
 def test_chat_maps_openai_rate_limit(api_client, monkeypatch):
     openai_client = Mock()
-    openai_client.responses.create.side_effect = provider_error(RateLimitError, 429)
+    openai_client.responses.create.side_effect = provider_error(
+        RateLimitError, 429, code="insufficient_quota"
+    )
     monkeypatch.setattr(main, "client", openai_client)
 
     response = post_chat(api_client)
 
     assert response.status_code == 429
-    assert "Limite" in response.json()["detail"]
+    assert "insufficient_quota" in response.json()["detail"]
+
+
+def test_chat_distinguishes_temporary_rate_limit(api_client, monkeypatch):
+    openai_client = Mock()
+    openai_client.responses.create.side_effect = provider_error(
+        RateLimitError, 429, code="rate_limit_exceeded"
+    )
+    monkeypatch.setattr(main, "client", openai_client)
+
+    response = post_chat(api_client)
+
+    assert response.status_code == 429
+    assert "temporário" in response.json()["detail"]
+    assert "rate_limit_exceeded" in response.json()["detail"]
 
 
 def test_chat_uses_responses_api_and_returns_reply(api_client, monkeypatch):
