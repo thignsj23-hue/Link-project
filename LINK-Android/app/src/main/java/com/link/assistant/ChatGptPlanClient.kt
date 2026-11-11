@@ -160,7 +160,7 @@ object ChatGptPlanClient {
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "text/event-stream")
         }
-        try {
+        return try {
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             if (connection.responseCode !in 200..299) {
                 val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -244,7 +244,7 @@ object ChatGptPlanClient {
             requestMethod = "POST"; connectTimeout = 20000; readTimeout = 30000; doOutput = true
             setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         }
-        try {
+        return try {
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
             val content = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -258,7 +258,7 @@ object ChatGptPlanClient {
             connectTimeout = 15000; readTimeout = 30000
             if (bearer != null) setRequestProperty("Authorization", "Bearer $bearer")
         }
-        try {
+        return try {
             val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
             val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (connection.responseCode !in 200..299) throw IllegalStateException("Falha ao consultar serviço OpenAI (HTTP ${connection.responseCode}).")
