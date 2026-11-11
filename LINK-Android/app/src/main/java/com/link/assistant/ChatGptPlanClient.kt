@@ -151,7 +151,7 @@ object ChatGptPlanClient {
         val input = JSONArray()
         history.takeLast(20).forEach { input.put(JSONObject().put("role", it.role).put("content", it.content)) }
         input.put(JSONObject().put("role", "user").put("content", message))
-        val body = JSONObject().put("model", model).put("instructions", "Você é LINK, um assistente pessoal em português brasileiro. Seja claro, prestativo, honesto e objetivo. Se a pessoa pedir informação atual, use a pesquisa na web quando ela estiver habilitada. Não afirme ter realizado ações em dispositivos sem integração e autorização.")
+        val body = JSONObject().put("model", model).put("instructions", "Você é LINK, um assistente pessoal. Responda em português brasileiro natural, com vocabulário e pronúncia próprios do Brasil. Responda diretamente ao que foi perguntado, com explicações claras e úteis sem repetir a pergunta. Seja honesto sobre incertezas; se faltar contexto essencial, faça uma pergunta curta. Para fatos que mudam com o tempo, use a pesquisa na web quando habilitada e indique claramente o que encontrou. Não afirme ter realizado ações em dispositivos sem integração e autorização.")
             .put("input", input).put("store", false).put("stream", true)
         if (webSearch) body.put("tools", JSONArray().put(JSONObject().put("type", "web_search"))).put("tool_choice", "required")
         val connection = (URL("$RESOURCE/responses").openConnection() as HttpsURLConnection).apply {

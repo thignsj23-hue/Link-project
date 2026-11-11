@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -74,8 +75,14 @@ class VoiceOverlayActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
     private fun chooseVoice() {
         val engine = tts ?: return
-        val voice = engine.voices.orEmpty().filter { it.locale.language == "pt" && !it.isNetworkConnectionRequired }.maxByOrNull { it.quality }
-        if (voice != null) engine.voice = voice else engine.language = Locale("pt", "BR")
+        val brazilianPortuguese = Locale("pt", "BR")
+        val localPortugueseVoices = engine.voices.orEmpty()
+            .filter { it.locale.language == "pt" && !it.isNetworkConnectionRequired }
+        val voice = localPortugueseVoices
+            .filter { it.locale.country.equals("BR", ignoreCase = true) }
+            .maxByOrNull { it.quality }
+            ?: localPortugueseVoices.maxByOrNull { it.quality }
+        if (voice != null) engine.voice = voice else engine.language = brazilianPortuguese
         engine.setSpeechRate(.94f); engine.setPitch(.96f)
     }
     private fun speak(text: String, nextTurn: (() -> Unit)?) {
@@ -169,7 +176,7 @@ class VoiceOverlayActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     IconButton(onClick = { activity.finish() }) { Icon(Icons.Default.Close, "Fechar avatar", tint = Color.White) }
                 }
                 Spacer(Modifier.height(10.dp))
-                if (bitmap != null) Image(bitmap.asImageBitmap(), "Avatar 2D", Modifier.size(132.dp).background(Color(0xFF101C30), CircleShape), contentScale = ContentScale.Crop)
+                if (bitmap != null) Image(bitmap.asImageBitmap(), "Avatar 2D", Modifier.size(132.dp).clip(CircleShape).background(Color(0xFF101C30), CircleShape), contentScale = ContentScale.Crop)
                 else AvatarArtwork(character, Modifier.size(132.dp))
                 Text("Seu assistente por voz", color = VoiceCyan, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
                 Surface(Modifier.fillMaxWidth().weight(1f).padding(vertical = 14.dp), color = Color(0xCC101C30), shape = RoundedCornerShape(18.dp)) {

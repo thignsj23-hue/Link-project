@@ -12,7 +12,7 @@ Este projeto é distribuído sob a licença [MIT](../LICENSE).
 - Detecção automática do idioma de origem em textos longos/imagens entre português, inglês, espanhol, francês, italiano e alemão; tradução no aparelho para esses seis idiomas e leitura de texto em imagens (OCR).
 - Modo Link ao Vivo para falar uma frase, traduzir no aparelho e ouvir a tradução.
 - Navegação Link Maps que abre a busca no aplicativo de mapas instalado.
-- Navegação adaptável: barra inferior em celular e trilho lateral em telas largas.
+- Navegação principal no trilho lateral esquerdo, em celulares e telas maiores.
 - Ícone adaptativo próprio e seleção automática da melhor voz local disponível.
 - Avatar 2D baseado em imagem selecionada pelo usuário. A conversão local simplifica cores e contornos, sem enviar a imagem para um serviço de geração.
 - Personagens e temas visuais selecionáveis e salvos no aparelho.
@@ -27,7 +27,7 @@ Tradução/OCR são locais. Conversa pode usar o fluxo oficial “Sign in with C
 ## Recursos locais e custos
 - Tradução e OCR são executados no aparelho e não consomem créditos OpenAI.
 - Na primeira tradução de um par de idiomas, o ML Kit baixa os modelos necessários (aprox. 30 MB por modelo); a primeira utilização precisa de internet. Depois, a tradução é feita no aparelho.
-- O download do modelo de tradução está limitado a Wi-Fi para evitar consumo móvel inesperado. Os modelos são fornecidos pelo ML Kit; resultados de tradução recebem atribuição ao Google Translate.
+- O download inicial do modelo de tradução pode usar Wi-Fi ou dados móveis. Os modelos são fornecidos pelo ML Kit; resultados de tradução recebem atribuição ao Google Translate.
 - O texto e as imagens processados por tradução/OCR permanecem no aparelho; o ML Kit pode enviar métricas de diagnóstico e utilização conforme a [documentação de privacidade](https://developers.google.com/ml-kit/terms).
 - O reconhecimento de voz e a qualidade das vozes dependem dos serviços e pacotes instalados no Android. A resposta inteligente por voz ainda usa a conversa na nuvem.
 - Link Maps abre o app de mapas disponível ou a busca web. Cobertura e navegação são fornecidas por esse app.
@@ -85,3 +85,6 @@ Esse caminho é opcional quando o plano ChatGPT está conectado. Sem uma das con
 
 ## Segurança
 Nunca coloque `OPENAI_API_KEY` em código Android, BuildConfig, GitHub ou aplicativo. Configure-a como variável secreta do serviço de backend. Use HTTPS. O token OAuth ChatGPT fica cifrado pelo Android Keystore e é enviado diretamente à OpenAI para solicitações autorizadas. Não exponha detalhes internos ou credenciais nos logs.
+# Interface no celular
+
+A navegação principal fica no trilho lateral esquerdo em celulares e telas maiores. A tela de tradução permite rolagem vertical e mantém os controles de voz, leitura de imagem e tradução em grupos compactos para evitar rótulos quebrados em aparelhos estreitos. Imagens escolhidas para o avatar passam pelo filtro local de posterização e contorno antes de serem mostradas como ilustração 2D.

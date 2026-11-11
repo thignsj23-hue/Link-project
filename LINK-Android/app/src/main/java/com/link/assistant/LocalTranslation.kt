@@ -35,7 +35,8 @@ object LocalTranslation {
         val translator = Translation.getClient(TranslatorOptions.Builder()
             .setSourceLanguage(sourceCode).setTargetLanguage(targetCode).build())
         return try {
-            translator.downloadModelIfNeeded(DownloadConditions.Builder().requireWifi().build()).await()
+            // Allow the user to download a language model over mobile data when Wi-Fi is unavailable.
+            translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
             translator.translate(text).await()
         } catch (error: Exception) {
             throw IllegalStateException("Não foi possível baixar ou usar o modelo de idioma. Confira a conexão e tente novamente.", error)

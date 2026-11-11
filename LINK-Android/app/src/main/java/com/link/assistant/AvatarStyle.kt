@@ -33,13 +33,15 @@ object AvatarStyle {
         scaled.getPixels(source, 0, w, 0, 0, w, h)
         val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val output = IntArray(source.size)
-        val step = 48
+        // Stronger color reduction and contouring make the uploaded portrait read as 2D art.
+        val step = 32
         for (y in 0 until h) for (x in 0 until w) {
             val i = y * w + x
             val c = source[i]
             val right = source[y * w + minOf(x + 1, w - 1)]
             val below = source[minOf(y + 1, h - 1) * w + x]
-            val edge = colorDistance(c, right) + colorDistance(c, below) > 150
+            val diagonal = source[minOf(y + 1, h - 1) * w + minOf(x + 1, w - 1)]
+            val edge = colorDistance(c, right) + colorDistance(c, below) + colorDistance(c, diagonal) > 210
             fun poster(v: Int) = ((v / step) * step + step / 2).coerceIn(0, 255)
             output[i] = if (edge) Color.rgb(20, 24, 40) else Color.rgb(poster(Color.red(c)), poster(Color.green(c)), poster(Color.blue(c)))
         }

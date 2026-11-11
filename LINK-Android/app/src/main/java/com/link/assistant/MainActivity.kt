@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asImageBitmap
 import android.graphics.BitmapFactory
@@ -74,10 +75,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
     private fun setVoiceFor(language: String) {
         val engine = tts ?: return
-        val locale = Locale(language)
+        val locale = if (language.equals("pt", ignoreCase = true) || language.startsWith("pt-", ignoreCase = true)) {
+            Locale.forLanguageTag("pt-BR")
+        } else Locale.forLanguageTag(language)
         val available = engine.voices.orEmpty().filter { it.locale.language == locale.language }
-        val voice: Voice? = available.filter { !it.isNetworkConnectionRequired }
+        val localVoices = available.filter { !it.isNetworkConnectionRequired }
+        val voice: Voice? = localVoices
+            .filter { it.locale.country.equals(locale.country, ignoreCase = true) }
             .maxByOrNull { it.quality }
+            ?: localVoices.maxByOrNull { it.quality }
         if (voice != null) engine.voice = voice else engine.language = locale
         engine.setSpeechRate(0.94f)
         engine.setPitch(0.96f)
@@ -90,7 +96,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 }
 
 data class ChatLine(val fromLink: Boolean, val text: String)
-fun asksForWebSearch(text: String): Boolean = Regex("\\b(pesquisa|pesquise|pesquisar|pesquisando|procure|busque|buscar|internet|online|fontes atuais)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+fun asksForWebSearch(text: String): Boolean = Regex("\\b(pesquisa|pesquise|pesquisar|pesquisando|procure|busque|buscar|internet|online|fontes atuais|previsão(?: do tempo)?|clima|temperatura|vai chover|chuva|weather|forecast|hoje|agora|atual|atualmente|notícias|últimas notícias|cotação|preço atual)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
 private enum class LinkPage(val label: String) { CHAT("Conversa"), TRANSLATE("Traduzir"), LIVE("Link ao vivo"), MAPS("Maps"), VOICE("Link Voice") }
 private data class LanguageOption(val name: String, val id: String, val locale: String)
 private val languageOptions = listOf(
@@ -294,15 +300,21 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                     IconButton(onClick = { startSpeech(false) }) { Icon(Icons.Default.Mic, "Falar", tint = if (listening) Cyan else Color.White) }
                     IconButton(onClick = { sendMessage() }, enabled = !isSending) { Icon(Icons.Default.Send, "Enviar", tint = Cyan) }
                 }
-                if (!wide) NavigationBar(containerColor = Panel) {
-                    LinkPage.entries.forEach { item -> NavigationBarItem(selected = page == item, onClick = { page = item }, icon = { Icon(pageIcon(item), item.label) }, label = { Text(item.label, maxLines = 1) }) }
-                }
             }) { padding ->
                 Row(Modifier.fillMaxSize().padding(padding)) {
-                    if (wide) NavigationRail(containerColor = Panel) {
-                        LinkPage.entries.forEach { item -> NavigationRailItem(selected = page == item, onClick = { page = item }, icon = { Icon(pageIcon(item), item.label) }, label = { Text(item.label) }) }
+                    NavigationRail(containerColor = Panel, modifier = Modifier.fillMaxHeight()) {
+                        Spacer(Modifier.height(8.dp))
+                        LinkPage.entries.forEach { item ->
+                            NavigationRailItem(
+                                selected = page == item,
+                                onClick = { page = item },
+                                icon = { Icon(pageIcon(item), item.label, modifier = Modifier.size(22.dp)) },
+                                label = { Text(item.label, maxLines = 1, fontSize = 9.sp) },
+                                alwaysShowLabel = true
+                            )
+                        }
                     }
-                    Column(Modifier.fillMaxSize().weight(1f).padding(horizontal = if (wide) 30.dp else 16.dp)) {
+                    Column(Modifier.fillMaxSize().weight(1f).padding(horizontal = if (wide) 30.dp else 10.dp)) {
                         Spacer(Modifier.height(12.dp))
                         Text(status, color = if (status.startsWith("IA conectada") || status.startsWith("Traduzido")) Cyan else Color.LightGray, fontSize = 12.sp)
                         if (isSending || translating) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
@@ -450,7 +462,7 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
 @Composable private fun AvatarPreview(path: String, character: String, usePhoto: Boolean) {
     val bitmap = remember(path) { if (path.isNotBlank()) runCatching { BitmapFactory.decodeFile(path) }.getOrNull() else null }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-        if (usePhoto && bitmap != null) Image(bitmap.asImageBitmap(), contentDescription = "Prévia do avatar 2D", modifier = Modifier.size(88.dp).background(Panel, CircleShape), contentScale = ContentScale.Crop)
+        if (usePhoto && bitmap != null) Image(bitmap.asImageBitmap(), contentDescription = "Prévia do avatar 2D", modifier = Modifier.size(88.dp).clip(CircleShape).background(Panel, CircleShape), contentScale = ContentScale.Crop)
         else AvatarArtwork(character, Modifier.size(88.dp))
     }
 }
@@ -496,7 +508,7 @@ private fun pageIcon(page: LinkPage) = when (page) {
     source: LanguageOption, target: LanguageOption, chooseSource: () -> Unit, chooseTarget: () -> Unit, swap: () -> Unit,
     autoDetect: Boolean, onAutoDetect: (Boolean) -> Unit,
     onTranslate: () -> Unit, onSpeak: () -> Unit, onMic: () -> Unit, listening: Boolean, onImage: () -> Unit, onAttribution: () -> Unit) {
-    Column(Modifier.fillMaxWidth().fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Spacer(Modifier.height(12.dp))
         Text(if (live) "Tradução por voz, diretamente no aparelho" else "Traduza texto e imagens sem créditos da API", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -507,17 +519,17 @@ private fun pageIcon(page: LinkPage) = when (page) {
             Switch(checked = autoDetect, onCheckedChange = onAutoDetect)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = chooseSource, modifier = Modifier.weight(1f)) { Text(source.name, maxLines = 1) }
+            OutlinedButton(onClick = chooseSource, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) { Text(source.name, maxLines = 1, softWrap = false) }
             IconButton(onClick = swap) { Icon(Icons.Default.SwapHoriz, "Trocar idiomas", tint = Cyan) }
-            OutlinedButton(onClick = chooseTarget, modifier = Modifier.weight(1f)) { Text(target.name, maxLines = 1) }
+            OutlinedButton(onClick = chooseTarget, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) { Text(target.name, maxLines = 1, softWrap = false) }
         }
-        OutlinedTextField(value = input, onValueChange = onInput, modifier = Modifier.fillMaxWidth().weight(1f, fill = false), minLines = 4, maxLines = 10, label = { Text(if (live) "Fale ou escreva" else "Texto original") }, shape = RoundedCornerShape(18.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onMic, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text(if (listening) "Ouvindo…" else "Falar") }
-            OutlinedButton(onClick = onImage, modifier = Modifier.weight(1f)) { Icon(Icons.Default.CameraAlt, null); Spacer(Modifier.width(6.dp)); Text("Ler imagem") }
-            Button(onClick = onTranslate, modifier = Modifier.weight(1f)) { Icon(Icons.Default.GTranslate, null); Spacer(Modifier.width(6.dp)); Text("Traduzir com Google") }
+        OutlinedTextField(value = input, onValueChange = onInput, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 8, label = { Text(if (live) "Fale ou escreva" else "Texto original") }, shape = RoundedCornerShape(18.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onMic, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp)) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(4.dp)); Text(if (listening) "Ouvindo" else "Falar", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = onImage, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp)) { Icon(Icons.Default.CameraAlt, null); Spacer(Modifier.width(4.dp)); Text("Ler imagem", maxLines = 1, softWrap = false) }
         }
-        if (output.isNotBlank()) Surface(Modifier.fillMaxWidth().weight(1f, fill = false), color = Panel, shape = RoundedCornerShape(18.dp)) {
+        Button(onClick = onTranslate, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.GTranslate, null); Spacer(Modifier.width(8.dp)); Text("Traduzir") }
+        if (output.isNotBlank()) Surface(Modifier.fillMaxWidth(), color = Panel, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("TRADUÇÃO", color = Cyan, fontSize = 11.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
