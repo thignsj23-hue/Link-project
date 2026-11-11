@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 }
 
 data class ChatLine(val fromLink: Boolean, val text: String)
-private fun asksForWebSearch(text: String): Boolean = Regex("\\b(pesquisa|pesquise|pesquisar|pesquisando|procure|busque|buscar|internet|online|fontes atuais)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+fun asksForWebSearch(text: String): Boolean = Regex("\\b(pesquisa|pesquise|pesquisar|pesquisando|procure|busque|buscar|internet|online|fontes atuais)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
 private enum class LinkPage(val label: String) { CHAT("Conversa"), TRANSLATE("Traduzir"), LIVE("Link ao vivo"), MAPS("Maps"), VOICE("Link Voice") }
 private data class LanguageOption(val name: String, val id: String, val locale: String)
 private val languageOptions = listOf(
@@ -395,11 +395,29 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                     TextButton(onClick = { scope.launch { ChatGptPlanClient.signOut(context); chatGptEmail = ""; chatGptModels = emptyList(); selectedChatGptModel = ""; status = "Conta ChatGPT desconectada" } }) { Text("Desconectar conta ChatGPT") }
                 }
                 Text("Solicitações elegíveis usam a franquia autorizada no plano e os limites definidos em ChatGPT > Configurações > Uso. Isso não conecta o GPT personalizado nem suas conversas.", fontSize = 11.sp, color = Color.LightGray)
-                if (showModelPicker) AlertDialog(onDismissRequest = { showModelPicker = false }, title = { Text("Modelo ChatGPT") }, text = {
-                    Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                        chatGptModels.forEach { item -> TextButton(onClick = { selectedChatGptModel = item.slug; prefs.edit().putString("chatgpt_model", item.slug).apply(); showModelPicker = false }, modifier = Modifier.fillMaxWidth()) { Text(if (item.slug == selectedChatGptModel) "✓ ${item.displayName}" else item.displayName) }
-                    }
-                }, confirmButton = { TextButton(onClick = { showModelPicker = false }) { Text("Fechar") } })
+                if (showModelPicker) {
+                    AlertDialog(
+                        onDismissRequest = { showModelPicker = false },
+                        title = { Text("Modelo ChatGPT") },
+                        text = {
+                            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                                chatGptModels.forEach { item ->
+                                    TextButton(
+                                        onClick = {
+                                            selectedChatGptModel = item.slug
+                                            prefs.edit().putString("chatgpt_model", item.slug).apply()
+                                            showModelPicker = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(if (item.slug == selectedChatGptModel) "✓ ${item.displayName}" else item.displayName)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = { TextButton(onClick = { showModelPicker = false }) { Text("Fechar") } }
+                    )
+                }
                 HorizontalDivider()
                 Text("Backend API opcional", fontSize = 12.sp, color = Cyan)
                 Text("Use somente se quiser usar a conexão API separada, que pode gerar cobranças fora do plano ChatGPT.", fontSize = 11.sp, color = Color.LightGray)
