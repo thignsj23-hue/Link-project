@@ -103,3 +103,27 @@ def test_chat_uses_responses_api_and_returns_reply(api_client, monkeypatch):
         input=[{"role": "user", "content": "Oi, LINK"}],
         max_output_tokens=1200,
     )
+
+
+def test_chat_enables_web_search_and_returns_source_links(api_client, monkeypatch):
+    annotation = SimpleNamespace(url="https://example.com/source", title="Fonte")
+    content = SimpleNamespace(annotations=[annotation])
+    output = SimpleNamespace(content=[content])
+    openai_client = Mock()
+    openai_client.responses.create.return_value = SimpleNamespace(
+        output_text="Resposta pesquisada", output=[output]
+    )
+    monkeypatch.setattr(main, "client", openai_client)
+
+    response = api_client.post(
+        "/v1/chat",
+        headers={"Authorization": "Bearer test-link-token"},
+        json={"message": "Pesquise isso", "web_search": True},
+    )
+
+    assert response.status_code == 200
+    assert "Resposta pesquisada" in response.json()["reply"]
+    assert "https://example.com/source" in response.json()["reply"]
+    kwargs = openai_client.responses.create.call_args.kwargs
+    assert kwargs["tools"] == [{"type": "web_search"}]
+    assert kwargs["tool_choice"] == "required"

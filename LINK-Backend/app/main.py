@@ -16,7 +16,7 @@ from openai import (
 )
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="LINK API", version="0.3.0")
+app = FastAPI(title="LINK API", version="0.4.0")
 client = OpenAI() if os.getenv("OPENAI_API_KEY") else None
 LINK_ACCESS_TOKEN = os.getenv("LINK_ACCESS_TOKEN", "")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
@@ -36,6 +36,7 @@ class HistoryItem(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     history: list[HistoryItem] = Field(default_factory=list, max_length=20)
+    web_search: bool = False
 
 class ChatResponse(BaseModel):
     reply: str
@@ -101,7 +102,7 @@ def raise_openai_http_error(exc: OpenAIError) -> None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "LINK API", "version": "0.3.0", "ai_configured": client is not None}
+    return {"status": "ok", "service": "LINK API", "version": "0.4.0", "ai_configured": client is not None}
 
 @app.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(require_client_token)])
 def chat(payload: ChatRequest):
@@ -117,8 +118,20 @@ def chat(payload: ChatRequest):
             instructions=SYSTEM_INSTRUCTIONS,
             input=conversation,
             max_output_tokens=1200,
+            **({"tools": [{"type": "web_search"}], "tool_choice": "required"} if payload.web_search else {}),
         )
         answer = response.output_text.strip()
+        if payload.web_search:
+            citations = {}
+            for item in getattr(response, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    for annotation in getattr(content, "annotations", []) or []:
+                        url = getattr(annotation, "url", "")
+                        title = getattr(annotation, "title", "") or url
+                        if isinstance(url, str) and url.startswith(("https://", "http://")):
+                            citations[url] = title
+            if citations:
+                answer += "\n\nFontes consultadas:\n" + "\n".join(f"• {title}: {url}" for url, title in citations.items())
         if not answer:
             raise HTTPException(status_code=502, detail="O modelo retornou uma resposta vazia.")
         return ChatResponse(reply=answer, model=MODEL)

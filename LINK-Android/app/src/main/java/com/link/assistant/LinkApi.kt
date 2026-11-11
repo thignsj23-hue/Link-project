@@ -10,12 +10,13 @@ import kotlinx.coroutines.withContext
 data class ApiMessage(val role: String, val content: String)
 
 object LinkApi {
-    suspend fun chat(baseUrl: String, accessToken: String, message: String, history: List<ApiMessage>): String =
+    suspend fun chat(baseUrl: String, accessToken: String, message: String, history: List<ApiMessage>, webSearch: Boolean = false): String =
         withContext(Dispatchers.IO) {
             require(baseUrl.startsWith("https://")) { "Informe uma URL HTTPS válida para o backend." }
             require(accessToken.isNotBlank()) { "Configure o token de acesso do LINK." }
             val payload = JSONObject().apply {
                 put("message", message)
+                put("web_search", webSearch)
                 put("history", JSONArray().apply {
                     history.takeLast(20).forEach { item ->
                         put(JSONObject().put("role", item.role).put("content", item.content))
