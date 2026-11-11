@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asImageBitmap
 import android.graphics.BitmapFactory
+import androidx.compose.animation.Crossfade
 import androidx.compose.ui.layout.ContentScale
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.text.font.FontWeight
@@ -146,7 +147,7 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
     var translating by remember { mutableStateOf(false) }
     var selectSource by remember { mutableStateOf(false) }
     var selectTarget by remember { mutableStateOf(false) }
-    val messages = remember { mutableStateListOf(ChatLine(true, "Olá! Sou o LINK. Conecte seu plano ChatGPT nas configurações para conversar; mapas, tradução e leitura de imagens também estão disponíveis.")) }
+    val messages = remember { mutableStateListOf<ChatLine>() }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         listening = false
@@ -289,7 +290,7 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
             Scaffold(containerColor = Night, topBar = {
                 TopAppBar(
                     title = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LinkMark(42); Column { Text("LINK", fontWeight = FontWeight.Black, letterSpacing = 3.sp); Text("ASSISTENTE • ${page.label.uppercase()}", fontSize = 10.sp, color = Cyan, letterSpacing = 1.sp) }
+                        LinkAvatar(avatarFilePath, avatarCharacter, usePhotoAvatar, 42); Column { Text("LINK", fontWeight = FontWeight.Black, letterSpacing = 3.sp); Text("ASSISTENTE • ${page.label.uppercase()}", fontSize = 10.sp, color = Cyan, letterSpacing = 1.sp) }
                     } },
                     actions = { IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Configurações", tint = Color.White) } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Night, titleContentColor = Color.White)
@@ -319,19 +320,27 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                         Spacer(Modifier.height(12.dp))
                         Text(status, color = if (status.startsWith("IA conectada") || status.startsWith("Traduzido")) Cyan else Color.LightGray, fontSize = 12.sp)
                         if (isSending || translating) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
-                        when (page) {
-                            LinkPage.CHAT -> ChatScreen(messages)
-                            LinkPage.TRANSLATE, LinkPage.LIVE -> TranslationScreen(
-                                live = page == LinkPage.LIVE, input = translationInput, onInput = { translationInput = it }, output = translationOutput,
-                                source = sourceLanguage, target = targetLanguage, chooseSource = { selectSource = true }, chooseTarget = { selectTarget = true },
-                                autoDetect = autoDetectLanguage, onAutoDetect = { autoDetectLanguage = it },
-                                swap = { val old = sourceLanguage; sourceLanguage = targetLanguage; targetLanguage = old },
-                                onTranslate = { translateCurrent() }, onSpeak = { if (translationOutput.isNotBlank()) onSpeak(translationOutput, targetLanguage.id) },
-                                onMic = { startSpeech(true) }, listening = listening, onImage = { imageLauncher.launch("image/*") },
-                                onAttribution = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://translate.google.com"))) }
-                            )
-                            LinkPage.MAPS -> MapsScreen(context)
-                            LinkPage.VOICE -> VoiceScreen(onOpenChat = { page = LinkPage.CHAT }, onSpeak = { startSpeech(false) })
+                        Crossfade(targetState = page, label = "LINK navigation") { visiblePage ->
+                            when (visiblePage) {
+                                LinkPage.CHAT -> ChatScreen(
+                                    messages = messages,
+                                    avatarPath = avatarFilePath,
+                                    avatarCharacter = avatarCharacter,
+                                    usePhotoAvatar = usePhotoAvatar,
+                                    onSuggestion = { draft = it }
+                                )
+                                LinkPage.TRANSLATE, LinkPage.LIVE -> TranslationScreen(
+                                    live = visiblePage == LinkPage.LIVE, input = translationInput, onInput = { translationInput = it }, output = translationOutput,
+                                    source = sourceLanguage, target = targetLanguage, chooseSource = { selectSource = true }, chooseTarget = { selectTarget = true },
+                                    autoDetect = autoDetectLanguage, onAutoDetect = { autoDetectLanguage = it },
+                                    swap = { val old = sourceLanguage; sourceLanguage = targetLanguage; targetLanguage = old },
+                                    onTranslate = { translateCurrent() }, onSpeak = { if (translationOutput.isNotBlank()) onSpeak(translationOutput, targetLanguage.id) },
+                                    onMic = { startSpeech(true) }, listening = listening, onImage = { imageLauncher.launch("image/*") },
+                                    onAttribution = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://translate.google.com"))) }
+                                )
+                                LinkPage.MAPS -> MapsScreen(context)
+                                LinkPage.VOICE -> VoiceScreen(onOpenChat = { page = LinkPage.CHAT }, onSpeak = { startSpeech(false) })
+                            }
                         }
                     }
                 }
@@ -471,6 +480,12 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
     }
 }
 
+@Composable private fun LinkAvatar(path: String, character: String, usePhoto: Boolean, size: Int) {
+    val bitmap = remember(path, usePhoto) { if (usePhoto && path.isNotBlank()) runCatching { BitmapFactory.decodeFile(path) }.getOrNull() else null }
+    if (bitmap != null) Image(bitmap.asImageBitmap(), "Avatar do LINK", Modifier.size(size.dp).clip(CircleShape).background(Panel), contentScale = ContentScale.Crop)
+    else AvatarArtwork(character, Modifier.size(size.dp))
+}
+
 @Composable private fun AvatarPreview(path: String, character: String, usePhoto: Boolean) {
     val bitmap = remember(path) { if (path.isNotBlank()) runCatching { BitmapFactory.decodeFile(path) }.getOrNull() else null }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
@@ -486,11 +501,46 @@ private fun pageIcon(page: LinkPage) = when (page) {
     LinkPage.MAPS -> Icons.Default.Explore
 }
 
-@Composable private fun ChatScreen(messages: List<ChatLine>) {
+@Composable private fun ChatScreen(
+    messages: List<ChatLine>,
+    avatarPath: String,
+    avatarCharacter: String,
+    usePhotoAvatar: Boolean,
+    onSuggestion: (String) -> Unit
+) {
     val uriHandler = LocalUriHandler.current
     Column(Modifier.fillMaxSize()) {
-        Spacer(Modifier.height(14.dp)); Text("CONVERSA", color = Cyan, fontSize = 11.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
+        Spacer(Modifier.height(14.dp)); Text(if (messages.isEmpty()) "LINK • ASSISTENTE PESSOAL" else "CONVERSA", color = Cyan, fontSize = 11.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+        if (messages.isEmpty()) {
+            Column(
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                val avatarBitmap = remember(avatarPath, usePhotoAvatar) {
+                    if (usePhotoAvatar && avatarPath.isNotBlank()) runCatching { BitmapFactory.decodeFile(avatarPath) }.getOrNull() else null
+                }
+                if (avatarBitmap != null) {
+                    Image(avatarBitmap.asImageBitmap(), "Avatar 2D personalizado", Modifier.size(112.dp).clip(CircleShape).background(Panel), contentScale = ContentScale.Crop)
+                } else AvatarArtwork(avatarCharacter, Modifier.size(112.dp))
+                Spacer(Modifier.height(16.dp))
+                Text("Olá! Eu sou o LINK.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 21.sp)
+                Text("Posso ajudar você a pesquisar, traduzir, entender imagens e planejar o dia.", color = Color.LightGray, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 7.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.padding(top = 16.dp)) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Icon(Icons.Default.Explore, null, tint = Cyan, modifier = Modifier.size(17.dp))
+                        Text("ChatGPT • pesquisa web para informações atuais", color = Color.LightGray, fontSize = 10.sp)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    AssistChip(onClick = { onSuggestion("Me ajude a planejar meu dia.") }, label = { Text("Planejar meu dia", fontSize = 10.sp) })
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    AssistChip(onClick = { onSuggestion("Pesquise as principais notícias de hoje.") }, label = { Text("Pesquisar notícias", fontSize = 10.sp) })
+                }
+            }
+        } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
             items(messages) { item -> Row(Modifier.fillMaxWidth(), horizontalArrangement = if (item.fromLink) Arrangement.Start else Arrangement.End) {
                 val annotated = remember(item.text) {
                     val urlRegex = Regex("https?://[^\\s)]+")
@@ -520,7 +570,7 @@ private fun pageIcon(page: LinkPage) = when (page) {
     source: LanguageOption, target: LanguageOption, chooseSource: () -> Unit, chooseTarget: () -> Unit, swap: () -> Unit,
     autoDetect: Boolean, onAutoDetect: (Boolean) -> Unit,
     onTranslate: () -> Unit, onSpeak: () -> Unit, onMic: () -> Unit, listening: Boolean, onImage: () -> Unit, onAttribution: () -> Unit) {
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Spacer(Modifier.height(12.dp))
         Text(if (live) "Tradução por voz, diretamente no aparelho" else "Traduza texto e imagens sem créditos da API", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
