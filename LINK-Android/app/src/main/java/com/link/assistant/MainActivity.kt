@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognizerIntent
+import android.speech.RecognitionListener
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -149,10 +151,7 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
     var selectTarget by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatLine>() }
 
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        listening = false
-        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        if (!spoken.isNullOrBlank()) {
+    fun processSpoken(spoken: String) {
             if (listenForTranslation) {
                 translationInput = spoken
                 scope.launch {
@@ -169,7 +168,39 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                     finally { translating = false; listenForTranslation = false }
                 }
             } else if (page == LinkPage.VOICE) { draft = spoken; autoSendVoice = true } else draft = spoken
-        }
+    }
+    val speechRecognizer = remember(context) {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null
+    }
+    DisposableEffect(speechRecognizer) {
+        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) { status = "Ouvindo..." }
+            override fun onBeginningOfSpeech() { status = "Estou ouvindo você" }
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() { status = "Entendi. Preparando resposta..." }
+            override fun onError(error: Int) {
+                listening = false
+                listenForTranslation = false
+                status = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Não entendi o áudio. Tente falar mais perto do microfone."
+                    SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "O serviço de reconhecimento de voz está sem conexão."
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permita o uso do microfone para falar com o LINK."
+                    else -> "O reconhecimento de voz falhou. Toque no microfone para tentar novamente."
+                }
+            }
+            override fun onResults(results: Bundle?) {
+                listening = false
+                val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()
+                if (spoken.isNullOrBlank()) {
+                    listenForTranslation = false
+                    status = "Não consegui entender. Tente falar novamente."
+                } else processSpoken(spoken)
+            }
+            override fun onPartialResults(partialResults: Bundle?) = Unit
+            override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        })
+        onDispose { speechRecognizer?.destroy() }
     }
     val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -213,7 +244,7 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, "Fale com o LINK")
             }
-            if (SpeechRecognizer.isRecognitionAvailable(context)) speechLauncher.launch(intent)
+            if (speechRecognizer != null) speechRecognizer.startListening(intent)
             else { listening = false; listenForTranslation = false; status = "Reconhecimento de voz indisponível neste aparelho" }
         } else { listenForTranslation = false; status = "Permissão de microfone negada" }
     }
@@ -327,6 +358,11 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
                                     avatarPath = avatarFilePath,
                                     avatarCharacter = avatarCharacter,
                                     usePhotoAvatar = usePhotoAvatar,
+                                    connectionLabel = when {
+                                        aiProvider == "chatgpt_plan" && chatGptEmail.isNotBlank() -> "ChatGPT conectado • pesquisa web automática"
+                                        aiProvider == "backend_api" && backendUrl.isNotBlank() && accessToken.isNotBlank() -> "LINK conectado • pesquisa web automática"
+                                        else -> "Conecte o ChatGPT nas configurações para conversar"
+                                    },
                                     onSuggestion = { draft = it }
                                 )
                                 LinkPage.TRANSLATE, LinkPage.LIVE -> TranslationScreen(
@@ -506,6 +542,7 @@ private fun pageIcon(page: LinkPage) = when (page) {
     avatarPath: String,
     avatarCharacter: String,
     usePhotoAvatar: Boolean,
+    connectionLabel: String,
     onSuggestion: (String) -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
@@ -529,7 +566,7 @@ private fun pageIcon(page: LinkPage) = when (page) {
                 Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.padding(top = 16.dp)) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         Icon(Icons.Default.Explore, null, tint = Cyan, modifier = Modifier.size(17.dp))
-                        Text("ChatGPT • pesquisa web para informações atuais", color = Color.LightGray, fontSize = 10.sp)
+                        Text(connectionLabel, color = Color.LightGray, fontSize = 10.sp, maxLines = 2)
                     }
                 }
                 Spacer(Modifier.height(14.dp))

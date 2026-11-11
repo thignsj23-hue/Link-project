@@ -3,6 +3,7 @@ package com.link.assistant
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
@@ -109,22 +110,19 @@ class VoiceOverlayActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     var thinking by remember { mutableStateOf(false) }
     var continueVoice by remember { mutableStateOf(prefs.getBoolean("avatar_continue_voice", true)) }
     var restartVoiceAfterSpeech by remember { mutableStateOf(false) }
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        listening = false
-        val heard = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
-        if (heard.isNullOrBlank()) { status = "Não consegui entender. Toque no microfone para tentar de novo."; return@rememberLauncherForActivityResult }
+    fun handleHeard(heard: String) {
         messages.add("Você: $heard")
         val localAction = AndroidActionRouter.run(context, heard)
         if (localAction != null) {
             status = localAction; messages.add("LINK: $localAction"); onSpeak(localAction, null)
-            return@rememberLauncherForActivityResult
+            return
         }
         val provider = prefs.getString("ai_provider", "chatgpt_plan") ?: "chatgpt_plan"
         val url = prefs.getString("backend_url", "")?.trim().orEmpty()
         val token = TokenCipher.read(context).orEmpty()
         val planEmail = ChatGptPlanClient.signedInEmail(context)
-        if (provider == "chatgpt_plan" && planEmail.isNullOrBlank()) { status = "Conecte sua conta ChatGPT nas configurações do LINK para responder."; onSpeak(status, null); return@rememberLauncherForActivityResult }
-        if (provider == "backend_api" && (url.isBlank() || token.isBlank())) { status = "Configure a API do LINK nas configurações para receber respostas faladas."; onSpeak(status, null); return@rememberLauncherForActivityResult }
+        if (provider == "chatgpt_plan" && planEmail.isNullOrBlank()) { status = "Conecte sua conta ChatGPT nas configurações do LINK para responder."; onSpeak(status, null); return }
+        if (provider == "backend_api" && (url.isBlank() || token.isBlank())) { status = "Configure a API do LINK nas configurações para receber respostas faladas."; onSpeak(status, null); return }
         thinking = true; status = "LINK está pensando..."
         scope.launch {
             try {
@@ -147,14 +145,43 @@ class VoiceOverlayActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             } finally { thinking = false }
         }
     }
+    val speechRecognizer = remember(context) {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null
+    }
+    DisposableEffect(speechRecognizer) {
+        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) { listening = true; status = "O LINK está ouvindo você..." }
+            override fun onBeginningOfSpeech() { status = "Estou ouvindo..." }
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() { status = "Entendi. Preparando resposta..." }
+            override fun onError(error: Int) {
+                listening = false
+                status = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Não entendi o áudio. Fale novamente perto do microfone."
+                    SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "O serviço de reconhecimento está sem conexão."
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permita o microfone para conversar com o LINK."
+                    else -> "Não consegui reconhecer a fala. Toque no microfone para tentar novamente."
+                }
+            }
+            override fun onResults(results: Bundle?) {
+                listening = false
+                val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()
+                if (heard.isNullOrBlank()) status = "Não consegui entender. Toque no microfone para tentar de novo."
+                else handleHeard(heard)
+            }
+            override fun onPartialResults(partialResults: Bundle?) = Unit
+            override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        })
+        onDispose { speechRecognizer?.destroy() }
+    }
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            if (!SpeechRecognizer.isRecognitionAvailable(context)) { status = "Serviço de reconhecimento de voz indisponível"; return@rememberLauncherForActivityResult }
+            if (speechRecognizer == null) { status = "Serviço de reconhecimento de voz indisponível"; return@rememberLauncherForActivityResult }
             listening = true; status = "Ouvindo..."
-            speechLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            speechRecognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Fale com o LINK")
             })
         } else status = "Permita o microfone para conversar com o avatar."
     }
