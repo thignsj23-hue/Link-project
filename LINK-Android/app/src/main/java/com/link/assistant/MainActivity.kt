@@ -136,6 +136,7 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
     var avatarCharacter by remember { mutableStateOf(prefs.getString("avatar_character", "Raposa") ?: "Raposa") }
     var avatarTheme by remember { mutableStateOf(prefs.getString("avatar_theme", "Aurora") ?: "Aurora") }
     var status by remember { mutableStateOf("Modo local disponível") }
+    var updateStatus by remember { mutableStateOf("Atualizações oficiais serão verificadas dentro do app.") }
     var autoSendVoice by remember { mutableStateOf(false) }
     var translationInput by remember { mutableStateOf("") }
     var translationOutput by remember { mutableStateOf("") }
@@ -340,6 +341,17 @@ fun LinkApp(onSpeak: (String, String) -> Unit) {
         if (selectTarget) LanguagePicker("Traduzir para", targetLanguage, { selectTarget = false }) { targetLanguage = it; selectTarget = false }
         if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Conexão e preferências") }, text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Atualização do LINK", fontSize = 12.sp, color = Cyan)
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        updateStatus = "Verificando versão oficial..."
+                        updateStatus = try { InAppUpdater.checkAndInstall(context) }
+                        catch (error: Exception) { error.message ?: "Não foi possível verificar a atualização." }
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Verificar e atualizar") }
+                Text(updateStatus, fontSize = 11.sp, color = Color.LightGray)
+                Text("A instalação é confirmada pelo Android. O pacote é baixado pelo LINK quando uma versão oficial está disponível.", fontSize = 10.sp, color = Color.Gray)
+                HorizontalDivider()
                 Text("Avatar 2D e acesso rápido", fontSize = 12.sp, color = Cyan)
                 AvatarPreview(avatarFilePath, avatarCharacter, usePhotoAvatar)
                 Text("Personagem", color = Color.White, fontSize = 13.sp)

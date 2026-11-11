@@ -88,3 +88,7 @@ Nunca coloque `OPENAI_API_KEY` em código Android, BuildConfig, GitHub ou aplica
 # Interface no celular
 
 A navegação principal fica no trilho lateral esquerdo em celulares e telas maiores. A tela de tradução permite rolagem vertical e mantém os controles de voz, leitura de imagem e tradução em grupos compactos para evitar rótulos quebrados em aparelhos estreitos. Imagens escolhidas para o avatar passam pelo filtro local de posterização e contorno antes de serem mostradas como ilustração 2D.
+
+## Atualização dentro do app
+
+O botão **Verificar e atualizar** procura a versão estável mais recente nas publicações do GitHub, baixa o APK oficial e abre a confirmação de instalação do Android. A instalação inicial e cada atualização precisam da mesma chave de assinatura. Para publicar uma versão estável, configure os segredos do repositório `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` e `ANDROID_KEY_PASSWORD`, depois envie uma tag `vX.Y.Z`. Nunca compartilhe esses segredos em mensagens ou no código. APKs de teste do Actions não são o canal de atualização estável.

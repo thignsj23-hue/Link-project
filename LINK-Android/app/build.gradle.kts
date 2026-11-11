@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+val appVersionCode = providers.gradleProperty("appVersionCode").orNull?.toInt() ?: 5
+val appVersionName = providers.gradleProperty("appVersionName").orNull ?: "0.5.0"
 android {
     namespace = "com.link.assistant"
     compileSdk = 35
@@ -10,8 +12,19 @@ android {
         applicationId = "com.link.assistant"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
+    }
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,6 +34,7 @@ android {
         jvmTarget = "17"
     }
     buildFeatures { compose = true }
+    buildTypes { release { signingConfig = signingConfigs.getByName("release") } }
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
